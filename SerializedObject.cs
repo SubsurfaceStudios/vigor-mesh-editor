@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.ProBuilder;
+using Newtonsoft.Json;
 
 namespace VigorXR.Utilities.UNSTABLE
 {
@@ -49,8 +50,8 @@ namespace VigorXR.Utilities.UNSTABLE
                 verticies = GatheredObjectData.ProBuilderMeshData.vertices;
                 uv = GatheredObjectData.ProBuilderMeshData.uv;
 
-                mesh.triangles = triangles;
                 mesh.vertices = verticies;
+                mesh.triangles = triangles;
                 mesh.uv = uv;
 
                 mesh.RecalculateNormals();
@@ -65,6 +66,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
         }
 
+        
         public ObjectData PrepareForSerialization()
         {
             Serialize();
@@ -78,29 +80,29 @@ namespace VigorXR.Utilities.UNSTABLE
         //Holds ALL data for a serialized custom room object.
 
         //The serialization type of the object.
-        public SerializedType ObjectType = new SerializedType();
+        [SerializeField] public SerializedType ObjectType { get; set; } = new SerializedType();
 
         //The mesh data for the object.
-        public ProBuilderMeshData ProBuilderMeshData = new ProBuilderMeshData();
+        [SerializeField] public ProBuilderMeshData ProBuilderMeshData { get; set; } = new ProBuilderMeshData();
 
         //Information about the object's GameObject.
-        public GameObjectData GameObjectData = new GameObjectData();
+        [SerializeField] public GameObjectData GameObjectData { get; set; } = new GameObjectData();
     }
 
     [System.Serializable]
     public class ProBuilderMeshData
     {
-        public Vector2[] uv;
-        public Vector3[] vertices;
-        public int[] triangles;
+        [SerializeField] public Vector2[] uv { get; set; }
+        [SerializeField] public Vector3[] vertices { get; set; }
+        [SerializeField] public int[] triangles { get; set; }
     }
 
     [System.Serializable]
     public class GameObjectData
     {
-        public Vector3 position;
-        public Quaternion rotation;
-        public Vector3 localScale;
+        [SerializeField] public Vector3 position { get; set; }
+        [SerializeField] public Quaternion rotation { get; set; }
+        [SerializeField] public Vector3 localScale { get; set; }
     }
 
     [System.Serializable]
