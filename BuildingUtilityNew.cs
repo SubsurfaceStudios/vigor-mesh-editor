@@ -13,16 +13,21 @@ namespace VigorXR.Utilities.UNSTABLE
     using System;
     using UnityEditor.ProBuilder;
     using ProBuilder.Examples;
+    using Parabox.CSG;
+    using Newtonsoft.Json;
 
     public class BuildingUtilityNew : MonoBehaviour
     {
         ProBuilderMesh pb;
 
+        
         List<ObjectData> data = new List<ObjectData>();
 
         SelectionObject selection;
 
-        List<Face> faceSelection;
+        List<Face> faceSelection = new List<Face>();
+
+        List<Vector3> faceSelectionNormals = new List<Vector3>();
 
         RaycastHit FaceRayHit;
 
@@ -35,7 +40,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
         DragState m_DragState = new DragState();
 
-
+        public GameObject other;
 
         [System.Obsolete]
         void OnGUI()
@@ -113,21 +118,56 @@ namespace VigorXR.Utilities.UNSTABLE
                 {
                     data.Add(item.PrepareForSerialization());
                 }
+                var json = JsonConvert.SerializeObject(data, settings: new JsonSerializerSettings()
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                }, formatting: Formatting.Indented);
+
+                var path = $"{Application.persistentDataPath}/Vigor XR Room Data.json";
+
+                StreamWriter writer = new StreamWriter(path, false);
+
+
+
+                writer.WriteLine(json);
+
+                writer.Close();
             }
 
             if (GUILayout.Button("Deserialize All Objects"))
             {
-                int i = 0;
-                var _objs = FindObjectsOfType<SerializedObject>();
+                
+                var prev_objs = FindObjectsOfType<SerializedObject>();
 
-                foreach (var item in _objs)
+                var path = $"{Application.persistentDataPath}/Vigor XR Room Data.json";
+
+                var json = File.ReadAllText(path);
+
+                JsonConvert.PopulateObject(json, data);
+
+                foreach (var item in prev_objs)
                 {
-                    item.Rebuild(data[i]);
-                    i++;
+                    Destroy(item.gameObject);
+                }
+
+                foreach(var item in data)
+                {
+                    var obj = new GameObject("Vigor Custom Object");
+
+                    var serial = obj.AddComponent<SerializedObject>();
+                    var sel = obj.AddComponent<SelectionObject>();
+
+                    if(item.ObjectType == SerializedType.PlayerMeshObject)
+                    {
+                        var _pb = obj.AddComponent<ProBuilderMesh>();
+                        var col = obj.AddComponent<MeshCollider>();
+                    }
+
+                    serial.Rebuild(item);
                 }
             }
 
-            if(GUILayout.Button("Set Object Selection From Camera"))
+            if (GUILayout.Button("Set Object Selection From Camera"))
             {
 
                 Physics.Raycast(origin: Camera.main.transform.position, direction: Camera.main.transform.forward, out RaycastHit hitInfo, maxDistance: 50f);
@@ -146,6 +186,8 @@ namespace VigorXR.Utilities.UNSTABLE
                 faceSelection.Add(selection.GetComponent<ProBuilderMesh>().faces[hitInfo.triangleIndex]);
 
                 FaceRayHit = hitInfo;
+
+                faceSelectionNormals.Add(hitInfo.normal);
             }
 
             if (GUILayout.Button("Remove Face Selection From Camera"))
@@ -156,7 +198,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
                 faceSelection.Remove(selection.GetComponent<ProBuilderMesh>().faces[hitInfo.triangleIndex]);
 
-
+                faceSelectionNormals.Remove(hitInfo.normal);
             }
 
             if(GUILayout.Button("Clear Selection"))
@@ -175,10 +217,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
             if(GUILayout.Button("Set face material"))
             {
-                if(faceSelection != null)
-                {
                     selection.GetComponent<ProBuilderMesh>().SetMaterial(faceSelection.ToArray(), ObjectMaterials[materialSelection]);
-                }
             }
 
             if(GUILayout.Button("Rotate selected faces 90 Degrees"))
@@ -195,6 +234,22 @@ namespace VigorXR.Utilities.UNSTABLE
             if (GUILayout.Button("Scale selected faces 0.5x"))
             {
                 ScaleSelectedFaces(new Vector3(.5f, .5f, .5f), false);
+            }
+
+            if(GUILayout.Button("difference bool"))
+            {
+                CSG_Model result = Parabox.CSG.Boolean.Subtract(selection.gameObject, other);
+
+                pb = selection.GetComponent<ProBuilderMesh>();
+
+                selection.GetComponent<MeshFilter>().sharedMesh = result.mesh;
+
+                selection.GetComponent<MeshRenderer>().sharedMaterials = result.materials.ToArray();
+
+                pb.Refresh();
+
+                pb.GetComponent<MeshCollider>().sharedMesh = null;
+                pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
             }
         }
 
@@ -224,8 +279,6 @@ namespace VigorXR.Utilities.UNSTABLE
 
             List<Vector3> vs = new List<Vector3>();
 
-            vs.Clear();
-
             foreach (var _item in _vs)
             {
                 vs.Add(_item.position);
@@ -233,29 +286,44 @@ namespace VigorXR.Utilities.UNSTABLE
 
             var av = UnityEngine.ProBuilder.Math.Average(vs.ToArray());
 
-            av -= _pb.transform.InverseTransformPoint(av);
+            av -= _pb.transform.position;
 
-            Matrix4x4 _m = _pb.transform.worldToLocalMatrix;
-            _m = Matrix4x4.Scale(factor);
+            Matrix4x4 _m;
+
+            _m = Matrix4x4.TRS(Vector3.zero - _pb.transform.position, Quaternion.Euler(new Vector3(0, 0, 0)), factor);
 
 
+
+            //_m.SetTRS(Vector3.zero - av, Quaternion.Euler(0,0,0), factor);
+
+
+            //_m = Matrix4x4.identity;
+
+            //_m = Matrix4x4.Scale(factor);
 
             foreach (var item in faceSelection)
             {
-
-                
                 
 
-                var indices = item.distinctIndexes;
+                var vertices = item.indexes;
 
-                foreach(var _item in indices)
+                var indices = _pb.sharedVertices;
+
+                foreach (var _item in vertices)
                 {
-                    var pos = _m.MultiplyPoint3x4(_vs[_item].position);
+                    var pos = _m.MultiplyVector(_vs[_item].position); //_m.MultiplyPoint(_pb.transform.TransformPoint(_vs[_item].position));
+
+                    
+                    pos -= _pb.transform.position;
 
                     _vs[_item].position = pos;
                 }
 
+
+                
                 _pb.SetVertices(_vs);
+
+                
 
                 _pb.ToTriangles(_pb.faces);
                 _pb.ToMesh();
