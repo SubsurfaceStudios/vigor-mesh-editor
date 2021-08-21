@@ -31,9 +31,9 @@ namespace VigorXR.Utilities.UNSTABLE
 
         RaycastHit FaceRayHit;
 
-        [SerializeField] Material[] ObjectMaterials;
+        [SerializeField] public Material[] ObjectMaterials;
 
-        [Range(0, 4)]
+        [Range(0, 5)]
         [SerializeField] int materialSelection;
 
         MeshAndFace m_Selection;
@@ -41,6 +41,9 @@ namespace VigorXR.Utilities.UNSTABLE
         DragState m_DragState = new DragState();
 
         public GameObject other;
+
+        int[] triangles;
+        Vector3[] vertices;
 
         [System.Obsolete]
         void OnGUI()
@@ -58,7 +61,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
                 pb.gameObject.AddComponent<MeshCollider>();
 
-                pb.gameObject.AddComponent<SerializedObject>();
+                var serial = pb.gameObject.AddComponent<SerializedObject>();
 
                 pb.gameObject.AddComponent<SelectionObject>();
 
@@ -67,6 +70,8 @@ namespace VigorXR.Utilities.UNSTABLE
                 selection.GetSerializedObject.ObjectSerializationType = SerializedType.PlayerMeshObject;
 
                 MeshUtility.CollapseSharedVertices(pb.GetComponent<MeshFilter>().mesh);
+
+                serial.SetFaceMaterial(pb.faces.ToArray(), 0);
 
                 pb.Refresh();
             }
@@ -120,7 +125,8 @@ namespace VigorXR.Utilities.UNSTABLE
                 }
                 var json = JsonConvert.SerializeObject(data, settings: new JsonSerializerSettings()
                 {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                    
                 }, formatting: Formatting.Indented);
 
                 var path = $"{Application.persistentDataPath}/Vigor XR Room Data.json";
@@ -159,6 +165,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
                     if(item.ObjectType == SerializedType.PlayerMeshObject)
                     {
+                        obj.AddComponent<MeshFilter>();
                         var _pb = obj.AddComponent<ProBuilderMesh>();
                         var col = obj.AddComponent<MeshCollider>();
                     }
@@ -167,15 +174,15 @@ namespace VigorXR.Utilities.UNSTABLE
                 }
             }
 
-            if (GUILayout.Button("Set Object Selection From Camera"))
-            {
+            //if (GUILayout.Button("Set Object Selection From Camera"))
+            //{
 
-                Physics.Raycast(origin: Camera.main.transform.position, direction: Camera.main.transform.forward, out RaycastHit hitInfo, maxDistance: 50f);
+            //    Physics.Raycast(origin: Camera.main.transform.position, direction: Camera.main.transform.forward, out RaycastHit hitInfo, maxDistance: 50f);
 
-                selection = hitInfo.collider.gameObject.GetComponent<SelectionObject>();
+            //    selection = hitInfo.collider.gameObject.GetComponent<SelectionObject>();
 
 
-            }
+            //}
 
             if (GUILayout.Button("Add Face Selection From Camera"))
             {
@@ -190,16 +197,16 @@ namespace VigorXR.Utilities.UNSTABLE
                 faceSelectionNormals.Add(hitInfo.normal);
             }
 
-            if (GUILayout.Button("Remove Face Selection From Camera"))
-            {
-                Physics.Raycast(origin: Camera.main.transform.position, direction: Camera.main.transform.forward, out RaycastHit hitInfo, maxDistance: 50f);
+            //if (GUILayout.Button("Remove Face Selection From Camera"))
+            //{
+            //    Physics.Raycast(origin: Camera.main.transform.position, direction: Camera.main.transform.forward, out RaycastHit hitInfo, maxDistance: 50f);
 
-                if (selection != hitInfo.collider.gameObject.GetComponent<SelectionObject>()) selection = hitInfo.collider.gameObject.GetComponent<SelectionObject>();
+            //    if (selection != hitInfo.collider.gameObject.GetComponent<SelectionObject>()) selection = hitInfo.collider.gameObject.GetComponent<SelectionObject>();
 
-                faceSelection.Remove(selection.GetComponent<ProBuilderMesh>().faces[hitInfo.triangleIndex]);
+            //    faceSelection.Remove(selection.GetComponent<ProBuilderMesh>().faces[hitInfo.triangleIndex]);
 
-                faceSelectionNormals.Remove(hitInfo.normal);
-            }
+            //    faceSelectionNormals.Remove(hitInfo.normal);
+            //}
 
             if(GUILayout.Button("Clear Selection"))
             {
@@ -217,7 +224,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
             if(GUILayout.Button("Set face material"))
             {
-                    selection.GetComponent<ProBuilderMesh>().SetMaterial(faceSelection.ToArray(), ObjectMaterials[materialSelection]);
+                selection.GetComponent<SerializedObject>().SetFaceMaterial(faceSelection.ToArray(), materialSelection);
             }
 
             if(GUILayout.Button("Rotate selected faces 90 Degrees"))
@@ -228,12 +235,12 @@ namespace VigorXR.Utilities.UNSTABLE
 
             if(GUILayout.Button("Scale selected faces 2x"))
             {
-                ScaleSelectedFaces(new Vector3(2,2,2), false);
+                ScaleSelectedFaces(new Vector3(2,2,2));
             }
 
             if (GUILayout.Button("Scale selected faces 0.5x"))
             {
-                ScaleSelectedFaces(new Vector3(.5f, .5f, .5f), false);
+                ScaleSelectedFaces(new Vector3(.5f, .5f, .5f));
             }
 
             if(GUILayout.Button("difference bool"))
@@ -269,11 +276,13 @@ namespace VigorXR.Utilities.UNSTABLE
         /// </summary>
         /// <param name="factor">scale factor, 0 = 0 scale, 1 = no scale difference, 2 = 200% scale, etc.</param>
         /// <param name="all">whether the origin of scaling should be individual (false) or between all faces (true) </param>
-        void ScaleSelectedFaces(Vector3 factor, bool all)
+        void ScaleSelectedFaces(Vector3 factor)
         {
             List<int> modifiedVertices = new List<int>();
             ProBuilderMesh _pb = selection.GetComponent<ProBuilderMesh>();
             Vertex[] _vs = _pb.GetVertices();
+
+            var mesh = selection.GetComponent<MeshFilter>();
 
             _pb.ToTriangles(_pb.faces);
 
@@ -290,7 +299,7 @@ namespace VigorXR.Utilities.UNSTABLE
 
             Matrix4x4 _m;
 
-            _m = Matrix4x4.TRS(Vector3.zero - _pb.transform.position, Quaternion.Euler(new Vector3(0, 0, 0)), factor);
+            
 
 
 
@@ -305,10 +314,34 @@ namespace VigorXR.Utilities.UNSTABLE
             {
                 
 
+                var one = item.indexes[0];
+                var two = item.indexes[1];
+                var three = item.indexes[2];
+
+                var onenorm = mesh.mesh.normals[one];
+                var twonorm = mesh.mesh.normals[two];
+                var threenorm = mesh.mesh.normals[three];
+
+                var array = new Vector3[] { onenorm, twonorm, threenorm };
+
+                var localnorm = UnityEngine.ProBuilder.Math.Average(array);
+
+                if (localnorm.x < 0)
+                    localnorm.x *= -1;
+
+                if (localnorm.y < 0)
+                    localnorm.y *= -1;
+
+                if (localnorm.z < 0)
+                    localnorm.z *= -1;
+
+
+
+                _m = Matrix4x4.TRS(pb.transform.position, Quaternion.Euler(new Vector3(0, 0, 0)), factor - localnorm.normalized);
+
                 var vertices = item.indexes;
 
-                var indices = _pb.sharedVertices;
-
+                List<int> operated = new List<int>();
                 foreach (var _item in vertices)
                 {
                     var pos = _m.MultiplyVector(_vs[_item].position); //_m.MultiplyPoint(_pb.transform.TransformPoint(_vs[_item].position));
@@ -316,10 +349,34 @@ namespace VigorXR.Utilities.UNSTABLE
                     
                     pos -= _pb.transform.position;
 
-                    _vs[_item].position = pos;
+                    
+                    var indexes = _pb.GetCoincidentVertices(new int[] { _item });
+
+                    triangles = mesh.mesh.triangles;
+
+                    this.vertices = mesh.mesh.vertices;
+
+                    List<int> relatedVertices = FindRelatedVertices(_vs[_item].position, false); //2
+                    foreach (int i in relatedVertices) //3
+                    {
+                        if(!operated.Contains(i))
+                        {
+                            vs[i] = pos;
+                            operated.Add(i);
+                        }
+                        
+                    }
+
+                    int ii = 0;
+                    foreach(var b in vs)
+                    {
+                        _vs[ii].position = b;
+
+                        ii++;
+                    }
                 }
 
-
+                
                 
                 _pb.SetVertices(_vs);
 
@@ -330,8 +387,8 @@ namespace VigorXR.Utilities.UNSTABLE
 
                 _pb.Refresh();
 
-                pb.GetComponent<MeshCollider>().sharedMesh = null;
-                pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
+                _pb.GetComponent<MeshCollider>().sharedMesh = null;
+                _pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
 
 
 
@@ -343,10 +400,59 @@ namespace VigorXR.Utilities.UNSTABLE
 
             _pb.Refresh();
 
-            pb.GetComponent<MeshCollider>().sharedMesh = null;
-            pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
+            _pb.GetComponent<MeshCollider>().sharedMesh = null;
+            _pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
 
             modifiedVertices.Clear();
+        }
+
+        private List<int> FindRelatedVertices(Vector3 targetPt, bool findConnected)
+        {
+            // list of int
+            List<int> relatedVertices = new List<int>();
+
+            int idx = 0;
+            Vector3 pos;
+
+            // loop through triangle array of indices
+            for (int t = 0; t < triangles.Length; t++)
+            {
+                // current idx return from tris
+                idx = triangles[t];
+                // current pos of the vertex
+                pos = vertices[idx];
+                // if current pos is same as targetPt
+                if (pos == targetPt)
+                {
+                    // add to list
+                    relatedVertices.Add(idx);
+                    // if find connected vertices
+                    if (findConnected)
+                    {
+                        // min
+                        // - prevent running out of count
+                        if (t == 0)
+                        {
+                            relatedVertices.Add(triangles[t + 1]);
+                        }
+                        // max 
+                        // - prevent runnign out of count
+                        if (t == triangles.Length - 1)
+                        {
+                            relatedVertices.Add(triangles[t - 1]);
+                        }
+                        // between 1 ~ max-1 
+                        // - add idx from triangles before t and after t 
+                        if (t > 0 && t < triangles.Length - 1)
+                        {
+                            relatedVertices.Add(triangles[t - 1]);
+                            relatedVertices.Add(triangles[t + 1]);
+                        }
+                    }
+                }
+            }
+            // return compiled list of int
+            return relatedVertices;
         }
 
         void RotateSelectedFaces(Vector3 axis, float rotation)
@@ -401,7 +507,6 @@ namespace VigorXR.Utilities.UNSTABLE
             pb.GetComponent<MeshCollider>().sharedMesh = pb.GetComponent<MeshFilter>().mesh;
 
         }
-
 
         //Credit:
         //Unity / ProBuilder > Examples > Runtime Mesh Modification
