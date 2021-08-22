@@ -1,23 +1,18 @@
-using System.Runtime.CompilerServices;
-using UnityEditor;
-using UnityEngine;
-using UnityEngine.ProBuilder;
-using Newtonsoft.Json;
-using System.Collections.Generic;
-using UnityEngine.ProBuilder.MeshOperations;
-using System.Linq;
-using System;
-
 namespace VigorXR.Utilities.UNSTABLE
 {
+    using UnityEngine;
+    using UnityEngine.ProBuilder;
+    using System.Collections.Generic;
+    using System.Linq;
+
     public class SerializedObject : MonoBehaviour
     {
-        [HideInInspector] [SerializeField] Vector2[] uv;
-        [HideInInspector] [SerializeField] Vector3[] verticies;
-        [HideInInspector] [SerializeField] int[] triangles;
-        [HideInInspector] [SerializeField] Vector3[] normals;
+        Vector2[] uv;
+        Vector3[] verticies;
+        int[] triangles;
+        Vector3[] normals;
 
-        [HideInInspector] [SerializeField] public Dictionary<int, int> materialIndexes = new Dictionary<int, int>();
+        public Dictionary<int, int> materialIndexes = new Dictionary<int, int>();
 
         private ObjectData GatheredObjectData = new ObjectData();
         public SerializedType ObjectSerializationType = SerializedType.PlayerEmptyObject;
